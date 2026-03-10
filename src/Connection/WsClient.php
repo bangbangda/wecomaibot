@@ -6,6 +6,7 @@ namespace WeComAiBot\Connection;
 
 use Workerman\Connection\AsyncTcpConnection;
 use Workerman\Timer;
+use WeComAiBot\Connection\SendQueue;
 use WeComAiBot\Protocol\Command;
 use WeComAiBot\Protocol\FrameBuilder;
 use WeComAiBot\Support\LoggerInterface;
@@ -37,6 +38,9 @@ class WsClient
     /** 连续丢失心跳 ack 的最大次数 */
     private const MAX_MISSED_PONG = 2;
 
+    /** 默认 ack 超时（秒） */
+    private const DEFAULT_ACK_TIMEOUT = 10;
+
     private ?AsyncTcpConnection $connection = null;
     private bool $authenticated = false;
     private bool $manualClose = false;
@@ -45,6 +49,9 @@ class WsClient
 
     /** 心跳定时器 ID */
     private ?int $heartbeatTimerId = null;
+
+    /** 发送队列（串行发送 + ack 等待） */
+    private SendQueue $sendQueue;
 
     /** 收到消息的回调 */
     private mixed $onMessageCallback = null;
@@ -68,7 +75,9 @@ class WsClient
         private readonly string $wsUrl = self::DEFAULT_WS_URL,
         private readonly int $heartbeatInterval = self::DEFAULT_HEARTBEAT_INTERVAL,
         private readonly int $maxReconnectAttempts = self::DEFAULT_MAX_RECONNECT_ATTEMPTS,
+        private readonly int $ackTimeout = self::DEFAULT_ACK_TIMEOUT,
     ) {
+        $this->sendQueue = new SendQueue($this->logger, $this->ackTimeout);
     }
 
     // ========== 事件注册 ==========
@@ -146,6 +155,12 @@ class WsClient
                 $this->connection->transport = 'ssl';
             }
 
+            // 绑定发送队列的底层发送函数
+            $conn = $this->connection;
+            $this->sendQueue->setSendFn(function (string $data) use ($conn) {
+                $conn->send($data);
+            });
+
             $this->setupEventHandlers();
             $this->connection->connect();
         } catch (\Throwable $e) {
@@ -163,6 +178,7 @@ class WsClient
         $this->manualClose = true;
         $this->stopHeartbeat();
         $this->authenticated = false;
+        $this->sendQueue->clear();
 
         if ($this->connection) {
             $this->connection->close();
@@ -173,7 +189,7 @@ class WsClient
     }
 
     /**
-     * 发送数据帧
+     * 直接发送数据帧（不经过队列，用于认证、心跳等系统帧）
      *
      * @param string $data JSON 字符串
      */
@@ -185,6 +201,33 @@ class WsClient
         }
 
         $this->connection->send($data);
+    }
+
+    /**
+     * 通过队列发送数据帧（串行发送，等待 ack 后再发下一帧）
+     *
+     * 用于回复消息、主动推送等业务帧，确保顺序和可靠性。
+     *
+     * @param string        $data  JSON 帧字符串
+     * @param string        $reqId 帧的 req_id，用于匹配 ack
+     * @param callable|null $onAck ack 回调：fn(int $errcode) => void
+     */
+    public function sendQueued(string $data, string $reqId, ?callable $onAck = null): void
+    {
+        if (!$this->connection) {
+            $this->logger->error('Cannot send: connection not established');
+            return;
+        }
+
+        $this->sendQueue->enqueue($data, $reqId, $onAck);
+    }
+
+    /**
+     * 获取发送队列实例
+     */
+    public function getSendQueue(): SendQueue
+    {
+        return $this->sendQueue;
     }
 
     /**
@@ -229,6 +272,7 @@ class WsClient
             $this->logger->warning('Connection closed');
             $this->authenticated = false;
             $this->stopHeartbeat();
+            $this->sendQueue->clear();
             $this->connection = null;
 
             if ($this->onDisconnectedCallback) {
@@ -308,9 +352,9 @@ class WsClient
             return;
         }
 
-        // 回复消息回执（V1 仅记录日志）
-        $ackErrcode = $frame['errcode'] ?? 'N/A';
-        $this->logger->debug("Ack frame: reqId={$reqId}, errcode={$ackErrcode}");
+        // 回复消息回执 → 路由到发送队列
+        $ackErrcode = $frame['errcode'] ?? -1;
+        $this->sendQueue->handleAck($reqId, (int) $ackErrcode);
     }
 
     /**
@@ -364,8 +408,10 @@ class WsClient
 
         $this->reconnectAttempts++;
 
-        // 指数退避：1s, 2s, 4s, 8s, ... 上限 30s
-        $delay = min(pow(2, $this->reconnectAttempts - 1), self::RECONNECT_MAX_DELAY);
+        // 指数退避 + 随机抖动：避免多 bot 同时重连冲击服务端
+        $baseDelay = min(pow(2, $this->reconnectAttempts - 1), self::RECONNECT_MAX_DELAY);
+        $jitter = $baseDelay * (mt_rand(50, 100) / 100); // 0.5x ~ 1.0x 随机
+        $delay = max(1, (int) round($jitter));
 
         $this->logger->info("Reconnecting in {$delay}s (attempt {$this->reconnectAttempts}/{$this->maxReconnectAttempts})...");
 

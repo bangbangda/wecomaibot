@@ -44,10 +44,11 @@ class Reply
      * 首次调用自动生成 streamId，后续调用共用同一个 streamId。
      * 最后一次调用需设置 finish: true 结束流式消息。
      *
-     * @param string $content 回复内容（支持 Markdown，内容为累积全文而非增量）
-     * @param bool   $finish  是否结束流式消息
+     * @param string        $content 回复内容（支持 Markdown，内容为累积全文而非增量）
+     * @param bool          $finish  是否结束流式消息
+     * @param callable|null $onAck   ack 回调：fn(int $errcode) => void
      */
-    public function stream(string $content, bool $finish = false): void
+    public function stream(string $content, bool $finish = false, ?callable $onAck = null): void
     {
         if ($this->streamId === null) {
             $this->streamId = FrameBuilder::generateReqId('stream');
@@ -60,7 +61,7 @@ class Reply
             finish: $finish,
         );
 
-        $this->client->send($frame);
+        $this->client->sendQueued($frame, $this->reqId, $onAck);
     }
 
     /**
