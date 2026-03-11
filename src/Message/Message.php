@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace WeComAiBot\Message;
 
+use WeComAiBot\Media\DownloadResult;
+use WeComAiBot\Media\MediaDownloader;
+
 /**
  * 收到的消息对象（只读）
  *
@@ -89,5 +92,79 @@ class Message
     public function hasText(): bool
     {
         return $this->text !== '';
+    }
+
+    /**
+     * 下载第一张图片
+     *
+     * @param MediaDownloader|null $downloader 下载器实例，为 null 时自动创建
+     * @return DownloadResult|null 无图片时返回 null
+     */
+    public function downloadImage(?MediaDownloader $downloader = null): ?DownloadResult
+    {
+        if (empty($this->imageUrls)) {
+            return null;
+        }
+
+        $url = $this->imageUrls[0];
+        $aesKey = $this->imageAesKeys[$url] ?? null;
+
+        return ($downloader ?? new MediaDownloader())->download($url, $aesKey);
+    }
+
+    /**
+     * 下载所有图片
+     *
+     * @param MediaDownloader|null $downloader 下载器实例
+     * @return DownloadResult[] 下载结果数组
+     */
+    public function downloadAllImages(?MediaDownloader $downloader = null): array
+    {
+        $downloader = $downloader ?? new MediaDownloader();
+        $results = [];
+
+        foreach ($this->imageUrls as $url) {
+            $aesKey = $this->imageAesKeys[$url] ?? null;
+            $results[] = $downloader->download($url, $aesKey);
+        }
+
+        return $results;
+    }
+
+    /**
+     * 下载第一个文件
+     *
+     * @param MediaDownloader|null $downloader 下载器实例
+     * @return DownloadResult|null 无文件时返回 null
+     */
+    public function downloadFile(?MediaDownloader $downloader = null): ?DownloadResult
+    {
+        if (empty($this->fileUrls)) {
+            return null;
+        }
+
+        $url = $this->fileUrls[0];
+        $aesKey = $this->fileAesKeys[$url] ?? null;
+
+        return ($downloader ?? new MediaDownloader())->download($url, $aesKey);
+    }
+
+    /**
+     * 下载所有文件
+     *
+     * @param MediaDownloader|null $downloader 下载器实例
+     * @return DownloadResult[] 下载结果数组
+     */
+    public function downloadAllFiles(?MediaDownloader $downloader = null): array
+    {
+        $downloader = $downloader ?? new MediaDownloader();
+        $results = [];
+
+        foreach ($this->fileUrls as $url) {
+            $aesKey = $this->fileAesKeys[$url] ?? null;
+            $results[] = $downloader->download($url, $aesKey);
+        }
+
+        return $results;
     }
 }
