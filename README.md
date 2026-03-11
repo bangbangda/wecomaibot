@@ -31,7 +31,9 @@
 - **流式回复** — 支持"思考中"加载动画 → 逐步更新 → 最终回复，就像 ChatGPT 那样
 - **主动推送** — 不用等用户说话，机器人可以主动找人聊天
 - **全消息类型** — 文本、语音(转文字)、图片、文件、图文混排、引用消息，全都支持
-- **断线自动重连** — 指数退避重连（1s → 2s → 4s → ... → 30s），心跳保活，网不好也不怕
+- **断线自动重连** — 指数退避 + 随机抖动，心跳保活，网不好也不怕
+- **串行发送队列** — 帧发送后等 ack 再发下一帧，超时自动跳过，告别消息丢失和乱序
+- **多机器人管理** — 一个进程跑多个 bot，各自独立连接、独立重连，数据完全隔离
 - **Laravel 深度集成** — Service Provider 自动注册，`php artisan wecom:serve` 一键启动
 - **纯 PHP 实现** — 基于 Workerman，不需要装 Swoole 扩展，`composer require` 就行
 
@@ -227,6 +229,79 @@ $message->hasFiles();   // 是否有文件
 $message->hasQuote();   // 是否有引用
 ```
 
+## 发送回执（ack 回调）
+
+每条发送的消息都会经过串行队列，等待企微服务端确认后再发下一条。你可以监听 ack 结果：
+
+```php
+// 主动推送 + ack 回调
+$bot->sendMessage('zhangsan', '重要通知', function (int $errcode) {
+    if ($errcode === 0) {
+        echo "发送成功\n";
+    } elseif ($errcode === -1) {
+        echo "发送超时\n";
+    } else {
+        echo "发送失败: errcode={$errcode}\n";
+    }
+});
+
+// 流式回复 + ack 回调
+$bot->onMessage(function (Message $message, Reply $reply) {
+    $reply->stream('处理完成！', finish: true, onAck: function (int $errcode) {
+        echo "回复ack: {$errcode}\n";
+    });
+});
+```
+
+## 多机器人管理
+
+一个进程同时跑多个机器人，每个 bot 拥有独立的连接、心跳、重连和发送队列，数据完全隔离：
+
+```php
+use WeComAiBot\BotManager;
+use WeComAiBot\Message\Message;
+use WeComAiBot\Message\Reply;
+
+$manager = new BotManager();
+
+// 销售部机器人
+$salesBot = $manager->addBot('sales', [
+    'bot_id' => 'sales-bot-id',
+    'secret' => 'sales-bot-secret',
+]);
+$salesBot->onMessage(function (Message $message, Reply $reply) {
+    $reply->text("【销售助手】收到：{$message->text}");
+});
+
+// 财务部机器人
+$financeBot = $manager->addBot('finance', [
+    'bot_id' => 'finance-bot-id',
+    'secret' => 'finance-bot-secret',
+]);
+$financeBot->onMessage(function (Message $message, Reply $reply) {
+    $reply->text("【财务助手】收到：{$message->text}");
+});
+
+// 一键启动所有机器人
+$manager->start();
+```
+
+```bash
+php multi-bot.php start
+```
+
+**BotManager API：**
+
+```php
+$manager->addBot('name', $config);   // 注册机器人，返回 WeComBot 实例
+$manager->getBot('name');            // 获取已注册的机器人
+$manager->getAllBots();              // 获取所有机器人
+$manager->removeBot('name');         // 移除机器人
+$manager->start();                   // 启动所有机器人（阻塞）
+```
+
+> **隔离保证：** 每个 bot 有独立的 WebSocket 连接，企微服务端只推送该 bot 的消息到对应连接。多 bot 同时断线时，重连采用随机抖动避免冲击服务端。一个 bot 认证失败不影响其他 bot。
+
 ## 完整配置项
 
 ```php
@@ -236,6 +311,7 @@ $bot = new WeComBot([
     'ws_url'                 => 'wss://...',    // (可选) WebSocket 地址，默认官方地址
     'heartbeat_interval'     => 30,             // (可选) 心跳间隔秒数，默认 30
     'max_reconnect_attempts' => 100,            // (可选) 最大重连次数，-1 为无限
+    'ack_timeout'            => 10,             // (可选) 发送帧 ack 超时秒数，默认 10
     'logger'                 => $myLogger,      // (可选) 自定义日志，实现 LoggerInterface
 ]);
 ```
@@ -321,8 +397,8 @@ php your-bot.php restart    # 重启
 - [ ] 模板卡片消息
 - [ ] 流式 + 卡片组合回复
 - [ ] 文件下载 + AES-256-CBC 解密
-- [ ] 回复消息回执等待（串行队列）
-- [ ] 多机器人实例管理
+- [x] 回复消息回执等待（串行队列 + ack 回调）
+- [x] 多机器人实例管理（BotManager，数据完全隔离）
 
 ## 参与贡献
 

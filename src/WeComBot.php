@@ -44,6 +44,7 @@ class WeComBot
     private string $wsUrl;
     private int $heartbeatInterval;
     private int $maxReconnectAttempts;
+    private int $ackTimeout;
     private LoggerInterface $logger;
 
     private ?WsClient $client = null;
@@ -67,6 +68,7 @@ class WeComBot
      *   - ws_url: string (可选) WebSocket 地址，默认 wss://openws.work.weixin.qq.com
      *   - heartbeat_interval: int (可选) 心跳间隔秒数，默认 30
      *   - max_reconnect_attempts: int (可选) 最大重连次数，默认 100，-1 为无限
+     *   - ack_timeout: int (可选) 发送帧 ack 超时秒数，默认 10
      *   - logger: LoggerInterface (可选) 自定义日志
      */
     public function __construct(array $config)
@@ -83,6 +85,7 @@ class WeComBot
         $this->wsUrl = $config['ws_url'] ?? self::DEFAULT_WS_URL;
         $this->heartbeatInterval = $config['heartbeat_interval'] ?? 30;
         $this->maxReconnectAttempts = $config['max_reconnect_attempts'] ?? 100;
+        $this->ackTimeout = $config['ack_timeout'] ?? 10;
         $this->logger = $config['logger'] ?? new ConsoleLogger();
     }
 
@@ -199,18 +202,23 @@ class WeComBot
      *
      * 需要在 start() 后且认证成功后调用
      *
-     * @param string $chatId  会话 ID（单聊填 userid，群聊填 chatid）
-     * @param string $content Markdown 内容
+     * @param string        $chatId  会话 ID（单聊填 userid，群聊填 chatid）
+     * @param string        $content Markdown 内容
+     * @param callable|null $onAck   ack 回调：fn(int $errcode) => void
      */
-    public function sendMessage(string $chatId, string $content): void
+    public function sendMessage(string $chatId, string $content, ?callable $onAck = null): void
     {
         if (!$this->client?->isConnected()) {
             $this->logger->error('Cannot sendMessage: not connected');
             return;
         }
 
-        $this->client->send(FrameBuilder::sendMessage($chatId, $content));
-        $this->logger->info("Sent message to {$chatId}");
+        $frame = FrameBuilder::sendMessage($chatId, $content);
+        $decoded = json_decode($frame, true);
+        $reqId = $decoded['headers']['req_id'] ?? '';
+
+        $this->client->sendQueued($frame, $reqId, $onAck);
+        $this->logger->info("Queued message to {$chatId}");
     }
 
     /**
@@ -228,6 +236,8 @@ class WeComBot
      *
      * 内部创建 Workerman Worker，在 onWorkerStart 中建立 WebSocket 连接。
      * 调用此方法后进程将阻塞在事件循环中。
+     *
+     * 如果需要在同一进程中运行多个机器人，请使用 BotManager。
      */
     public function start(): void
     {
@@ -250,6 +260,31 @@ class WeComBot
         Worker::runAll();
     }
 
+    /**
+     * 仅建立连接（不创建 Worker）
+     *
+     * 供 BotManager 在统一的 Worker 中调用，多个 bot 共享同一事件循环。
+     * 不要直接调用此方法，请使用 start() 或 BotManager。
+     *
+     * @internal
+     */
+    public function connectOnly(): void
+    {
+        $this->logger->info("Connecting to {$this->wsUrl}...");
+        $this->createAndConnect();
+    }
+
+    /**
+     * 断开连接
+     *
+     * @internal
+     */
+    public function disconnectOnly(): void
+    {
+        $this->logger->info('Disconnecting...');
+        $this->client?->disconnect();
+    }
+
     // ========== 内部实现 ==========
 
     /**
@@ -264,6 +299,7 @@ class WeComBot
             wsUrl: $this->wsUrl,
             heartbeatInterval: $this->heartbeatInterval,
             maxReconnectAttempts: $this->maxReconnectAttempts,
+            ackTimeout: $this->ackTimeout,
         );
 
         // 注册消息回调
