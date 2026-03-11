@@ -313,6 +313,21 @@ class WsClient
         if ($cmd === Command::EVENT_CALLBACK) {
             $eventtype = $frame['body']['event']['eventtype'] ?? 'unknown';
             $this->logger->debug("Received event: {$eventtype}");
+
+            // disconnected_event: 新连接踢掉旧连接，需要重连
+            if ($eventtype === 'disconnected_event') {
+                $this->logger->warning('Received disconnected_event: kicked by new connection');
+                if ($this->onEventCallback) {
+                    ($this->onEventCallback)($frame);
+                }
+                // 标记为非手动关闭，触发 onClose 后自动重连
+                $this->manualClose = false;
+                if ($this->connection) {
+                    $this->connection->close();
+                }
+                return;
+            }
+
             if ($this->onEventCallback) {
                 ($this->onEventCallback)($frame);
             }

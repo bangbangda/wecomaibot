@@ -49,6 +49,12 @@ class WeComBot
 
     private ?WsClient $client = null;
 
+    /** @var array<string, true> 已处理的 msgid 集合（用于去重） */
+    private array $processedMsgIds = [];
+
+    /** 去重缓存最大容量 */
+    private const DEDUP_MAX_SIZE = 1000;
+
     /** @var array<string, list<callable>> 消息回调（按类型分组） */
     private array $messageHandlers = [];
 
@@ -379,6 +385,19 @@ class WeComBot
             return;
         }
 
+        // 消息去重（网络抖动可能收到重复消息）
+        if ($message->id !== '' && isset($this->processedMsgIds[$message->id])) {
+            $this->logger->debug("Duplicate message skipped: msgid={$message->id}");
+            return;
+        }
+        if ($message->id !== '') {
+            $this->processedMsgIds[$message->id] = true;
+            // 超过容量上限时清理最早的一半
+            if (count($this->processedMsgIds) > self::DEDUP_MAX_SIZE) {
+                $this->processedMsgIds = array_slice($this->processedMsgIds, (int) (self::DEDUP_MAX_SIZE / 2), null, true);
+            }
+        }
+
         // 跳过空消息（没有文本、图片、文件）
         if (!$message->hasText() && !$message->hasImages() && !$message->hasFiles()) {
             $this->logger->debug('Skipping empty message');
@@ -425,6 +444,8 @@ class WeComBot
         $chatId = $body['chatid'] ?? null;
         $senderId = $body['from']['userid'] ?? '';
 
+        $createTime = isset($body['create_time']) ? (int) $body['create_time'] : null;
+
         $event = new Event(
             id: $body['msgid'] ?? '',
             reqId: $reqId,
@@ -432,6 +453,7 @@ class WeComBot
             chatType: $chatType,
             chatId: $chatId,
             senderId: $senderId,
+            createTime: $createTime,
             eventData: $body['event'] ?? [],
             raw: $frame,
         );
