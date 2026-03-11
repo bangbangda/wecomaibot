@@ -253,6 +253,49 @@ $message->hasFiles();   // 是否有文件
 $message->hasQuote();   // 是否有引用
 ```
 
+## 文件下载与解密
+
+企微传输的图片和文件经过 AES-256-CBC 加密。SDK 提供了一键下载解密的方法：
+
+```php
+$bot->onImage(function (Message $message, Reply $reply) {
+    // 下载并自动解密第一张图片
+    $result = $message->downloadImage();
+    $result->saveTo('/tmp/photo.jpg');
+    echo "图片大小: {$result->size()} 字节\n";
+
+    // 下载所有图片
+    $results = $message->downloadAllImages();
+});
+
+$bot->onFile(function (Message $message, Reply $reply) {
+    // 下载并自动解密文件
+    $result = $message->downloadFile();
+    echo "文件名: {$result->filename}\n";
+    $result->saveTo("/tmp/{$result->filename}");
+});
+```
+
+**也可以直接使用 MediaDownloader：**
+
+```php
+use WeComAiBot\Media\MediaDownloader;
+use WeComAiBot\Media\MediaDecryptor;
+
+$downloader = new MediaDownloader();
+
+// 下载并解密
+$result = $downloader->download($url, $aesKey);
+
+// 下载并直接保存到目录
+$savedPath = $downloader->downloadToFile($url, '/tmp/downloads/', $aesKey);
+
+// 单独解密（已有加密数据的场景）
+$decrypted = MediaDecryptor::decrypt($encryptedData, $aesKey);
+```
+
+> **注意：** 下载 URL 有效期 **5 分钟**，请在收到消息后尽快下载。
+
 ## 发送回执（ack 回调）
 
 所有发送的消息都经过串行队列，等待企微服务端确认后再发下一条。回复消息同样支持 ack 回调：
@@ -408,7 +451,7 @@ php your-bot.php restart    # 重启
 - [x] Laravel Service Provider + Artisan 命令
 - [ ] 模板卡片消息
 - [ ] 流式 + 卡片组合回复
-- [ ] 文件下载 + AES-256-CBC 解密
+- [x] 文件下载 + AES-256-CBC 解密
 - [x] 回复消息回执等待（串行队列 + ack 回调）
 - [x] 多机器人实例管理（BotManager，数据完全隔离）
 
