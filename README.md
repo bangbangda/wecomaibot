@@ -413,7 +413,7 @@ php your-bot.php restart    # 重启
 
 Issue 和 PR 都欢迎。
 
-毕竟，PHP 社区要团结起来，别让 Node.js 的人笑话我们没有 SDK。
+让 PHP 更好玩，让开发者更开心。
 
 ## 开源协议
 
