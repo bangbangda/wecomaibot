@@ -81,16 +81,18 @@ final class FrameBuilder
     /**
      * 构建主动推送消息帧（Markdown）
      *
-     * @param string $chatId  会话 ID（单聊填 userid，群聊填 chatid）
-     * @param string $content Markdown 内容
+     * @param string $chatId   会话 ID（单聊填 userid，群聊填 chatid）
+     * @param string $content  Markdown 内容
+     * @param int    $chatType 会话类型：1=单聊，2=群聊，0=自动判断
      */
-    public static function sendMessage(string $chatId, string $content): string
+    public static function sendMessage(string $chatId, string $content, int $chatType = 0): string
     {
         return self::encode([
             'cmd' => Command::SEND_MSG,
             'headers' => ['req_id' => self::generateReqId(Command::SEND_MSG)],
             'body' => [
                 'chatid' => $chatId,
+                'chat_type' => $chatType,
                 'msgtype' => 'markdown',
                 'markdown' => ['content' => $content],
             ],

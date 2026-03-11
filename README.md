@@ -145,15 +145,36 @@ $bot->onMessage(function (Message $message, Reply $reply) {
 
 ## 主动推送消息
 
-不用等用户说话，机器人主动找人：
+不用等用户说话，机器人主动找人。支持单聊和群聊，自动区分会话类型：
 
 ```php
 $bot->onAuthenticated(function () use ($bot) {
-    // 向指定用户发消息（填 userid）
-    $bot->sendMessage('zhangsan', '你好，提醒你下午 3 点有个会议');
+    // 推送给指定用户（单聊，chat_type=1）
+    $bot->pushToUser('zhangsan', '你好，提醒你下午 3 点有个会议');
 
-    // 向群聊发消息（填 chatid）
-    $bot->sendMessage('group-chat-id', '各位注意，系统将在 5 分钟后维护');
+    // 推送到群聊（chat_type=2）
+    $bot->pushToGroup('group-chat-id', '各位注意，系统将在 5 分钟后维护');
+
+    // 自动判断（chat_type=0，兼容旧代码）
+    $bot->sendMessage('zhangsan', '这条消息会自动判断会话类型');
+});
+```
+
+> **前提：** 用户需先在会话中给机器人发过消息，机器人才能主动推送。
+>
+> **频率限制：** 30 条/分钟，1000 条/小时（与回复消息共享配额）。
+
+**监听发送结果（ack 回调）：**
+
+```php
+$bot->pushToUser('zhangsan', '重要通知', function (int $errcode) {
+    if ($errcode === 0) {
+        echo "发送成功\n";
+    } elseif ($errcode === -1) {
+        echo "发送超时\n";
+    } else {
+        echo "发送失败: errcode={$errcode}\n";
+    }
 });
 ```
 
@@ -231,21 +252,9 @@ $message->hasQuote();   // 是否有引用
 
 ## 发送回执（ack 回调）
 
-每条发送的消息都会经过串行队列，等待企微服务端确认后再发下一条。你可以监听 ack 结果：
+所有发送的消息都经过串行队列，等待企微服务端确认后再发下一条。回复消息同样支持 ack 回调：
 
 ```php
-// 主动推送 + ack 回调
-$bot->sendMessage('zhangsan', '重要通知', function (int $errcode) {
-    if ($errcode === 0) {
-        echo "发送成功\n";
-    } elseif ($errcode === -1) {
-        echo "发送超时\n";
-    } else {
-        echo "发送失败: errcode={$errcode}\n";
-    }
-});
-
-// 流式回复 + ack 回调
 $bot->onMessage(function (Message $message, Reply $reply) {
     $reply->stream('处理完成！', finish: true, onAck: function (int $errcode) {
         echo "回复ack: {$errcode}\n";

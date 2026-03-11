@@ -86,8 +86,31 @@ class FrameBuilderTest extends TestCase
         $this->assertSame(Command::SEND_MSG, $frame['cmd']);
         $this->assertStringStartsWith(Command::SEND_MSG . '_', $frame['headers']['req_id']);
         $this->assertSame('user001', $frame['body']['chatid']);
+        $this->assertSame(0, $frame['body']['chat_type']);
         $this->assertSame('markdown', $frame['body']['msgtype']);
         $this->assertSame('**加粗文本**', $frame['body']['markdown']['content']);
+    }
+
+    public function test_send_message_single_chat(): void
+    {
+        $frame = json_decode(
+            FrameBuilder::sendMessage('zhangsan', '你好', 1),
+            true,
+        );
+
+        $this->assertSame(1, $frame['body']['chat_type']);
+        $this->assertSame('zhangsan', $frame['body']['chatid']);
+    }
+
+    public function test_send_message_group_chat(): void
+    {
+        $frame = json_decode(
+            FrameBuilder::sendMessage('group123', '通知', 2),
+            true,
+        );
+
+        $this->assertSame(2, $frame['body']['chat_type']);
+        $this->assertSame('group123', $frame['body']['chatid']);
     }
 
     public function test_reply_welcome_frame(): void

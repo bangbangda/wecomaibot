@@ -198,9 +198,34 @@ class WeComBot
     // ========== 主动操作 ==========
 
     /**
-     * 主动向指定会话发送消息
+     * 主动推送消息给用户（单聊）
      *
-     * 需要在 start() 后且认证成功后调用
+     * @param string        $userId  用户 userid
+     * @param string        $content Markdown 内容
+     * @param callable|null $onAck   ack 回调：fn(int $errcode) => void
+     */
+    public function pushToUser(string $userId, string $content, ?callable $onAck = null): void
+    {
+        $this->push($userId, $content, 1, $onAck);
+    }
+
+    /**
+     * 主动推送消息到群聊
+     *
+     * @param string        $chatId  群聊 chatid
+     * @param string        $content Markdown 内容
+     * @param callable|null $onAck   ack 回调：fn(int $errcode) => void
+     */
+    public function pushToGroup(string $chatId, string $content, ?callable $onAck = null): void
+    {
+        $this->push($chatId, $content, 2, $onAck);
+    }
+
+    /**
+     * 主动向指定会话发送消息（chat_type 自动判断）
+     *
+     * 需要在 start() 后且认证成功后调用。
+     * 建议优先使用 pushToUser() 或 pushToGroup() 明确指定会话类型。
      *
      * @param string        $chatId  会话 ID（单聊填 userid，群聊填 chatid）
      * @param string        $content Markdown 内容
@@ -208,17 +233,30 @@ class WeComBot
      */
     public function sendMessage(string $chatId, string $content, ?callable $onAck = null): void
     {
+        $this->push($chatId, $content, 0, $onAck);
+    }
+
+    /**
+     * 内部推送方法
+     *
+     * @param string        $chatId   会话 ID
+     * @param string        $content  Markdown 内容
+     * @param int           $chatType 1=单聊，2=群聊，0=自动
+     * @param callable|null $onAck    ack 回调
+     */
+    private function push(string $chatId, string $content, int $chatType, ?callable $onAck = null): void
+    {
         if (!$this->client?->isConnected()) {
-            $this->logger->error('Cannot sendMessage: not connected');
+            $this->logger->error('Cannot push: not connected');
             return;
         }
 
-        $frame = FrameBuilder::sendMessage($chatId, $content);
+        $frame = FrameBuilder::sendMessage($chatId, $content, $chatType);
         $decoded = json_decode($frame, true);
         $reqId = $decoded['headers']['req_id'] ?? '';
 
         $this->client->sendQueued($frame, $reqId, $onAck);
-        $this->logger->info("Queued message to {$chatId}");
+        $this->logger->info("Queued push to {$chatId} (chat_type={$chatType})");
     }
 
     /**

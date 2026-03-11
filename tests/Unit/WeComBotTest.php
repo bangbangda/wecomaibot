@@ -66,4 +66,38 @@ class WeComBotTest extends TestCase
 
         $this->assertNull($bot->getClient());
     }
+
+    public function test_push_to_user_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot([
+            'bot_id' => 'test-bot',
+            'secret' => 'test-secret',
+        ]);
+
+        // 未连接时调用不抛异常，只记录日志
+        $bot->pushToUser('zhangsan', '测试');
+        $this->assertTrue(true); // 没有抛异常即通过
+    }
+
+    public function test_push_to_group_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot([
+            'bot_id' => 'test-bot',
+            'secret' => 'test-secret',
+        ]);
+
+        $bot->pushToGroup('group123', '测试');
+        $this->assertTrue(true);
+    }
+
+    public function test_send_message_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot([
+            'bot_id' => 'test-bot',
+            'secret' => 'test-secret',
+        ]);
+
+        $bot->sendMessage('zhangsan', '测试');
+        $this->assertTrue(true);
+    }
 }
