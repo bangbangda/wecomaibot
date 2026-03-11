@@ -17,4 +17,7 @@ enum EventType: string
 
     /** 用户反馈事件：用户对机器人回复进行反馈 */
     case FeedbackEvent = 'feedback_event';
+
+    /** 断连事件：新连接建立导致旧连接被踢掉 */
+    case DisconnectedEvent = 'disconnected_event';
 }

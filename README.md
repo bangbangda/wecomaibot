@@ -199,8 +199,11 @@ $bot->onEvent('enter_chat', function (Event $event, Reply $reply) {
 // 监听所有事件
 $bot->onEvent('*', function (Event $event, Reply $reply) {
     echo "事件类型：{$event->eventType}\n";
+    echo "事件时间：" . date('Y-m-d H:i:s', $event->createTime) . "\n";
 });
 ```
+
+> **超时约束：** `enter_chat` 欢迎语需在 **5 秒内**回复，流式消息需在 **6 分钟内**完成，回复消息有效期 **24 小时**。
 
 ## Message 对象
 
