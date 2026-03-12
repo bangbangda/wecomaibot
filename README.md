@@ -30,6 +30,7 @@
 - **三行代码启动** — 配置 bot_id + secret，注册回调，`start()`，完事
 - **流式回复** — 支持"思考中"加载动画 → 逐步更新 → 最终回复，就像 ChatGPT 那样
 - **主动推送** — 不用等用户说话，机器人可以主动找人聊天
+- **模板卡片** — 推送交互式卡片，监听按钮点击，实时更新卡片状态
 - **全消息类型** — 文本、语音(转文字)、图片、文件、图文混排、引用消息，全都支持
 - **断线自动重连** — 指数退避 + 随机抖动，心跳保活，网不好也不怕
 - **串行发送队列** — 帧发送后等 ack 再发下一帧，超时自动跳过，告别消息丢失和乱序
@@ -177,6 +178,57 @@ $bot->pushToUser('zhangsan', '重要通知', function (int $errcode) {
     }
 });
 ```
+
+## 模板卡片消息
+
+支持主动推送模板卡片、监听按钮点击事件、更新卡片状态。卡片结构体由调用者定义，SDK 直接透传，灵活且无约束。
+
+### 推送模板卡片
+
+```php
+// 推送给用户（单聊）
+$bot->pushTemplateCardToUser('zhangsan', [
+    'card_type' => 'button_interaction',
+    'main_title' => ['title' => '服务器告警', 'desc' => 'CPU 超过 90%'],
+    'button_list' => [
+        ['text' => '确认', 'style' => 1, 'key' => 'confirm'],
+        ['text' => '误报', 'style' => 2, 'key' => 'false_alarm'],
+    ],
+    'task_id' => 'ALERT_001',
+]);
+
+// 推送到群聊
+$bot->pushTemplateCardToGroup('group_chatid', [
+    'card_type' => 'button_interaction',
+    'main_title' => ['title' => '审批通知', 'desc' => '张三提交了报销申请'],
+    'button_list' => [
+        ['text' => '同意', 'style' => 1, 'key' => 'approve'],
+        ['text' => '拒绝', 'style' => 2, 'key' => 'reject'],
+    ],
+    'task_id' => 'APPROVAL_001',
+]);
+```
+
+### 监听按钮点击 + 更新卡片
+
+```php
+$bot->onTemplateCardEvent(function (Event $event) use ($bot) {
+    $eventKey = $event->eventData['event_key'] ?? '';
+    $taskId = $event->eventData['task_id'] ?? '';
+
+    // 5 秒内更新卡片状态
+    $bot->updateTemplateCard($event->reqId, [
+        'card_type' => 'button_interaction',
+        'main_title' => ['title' => '服务器告警', 'desc' => '已处理'],
+        'button_list' => [
+            ['text' => '已确认', 'style' => 1, 'key' => 'confirm'],
+        ],
+        'task_id' => $taskId,
+    ]);
+});
+```
+
+> **注意：** 收到 `template_card_event` 后必须在 **5 秒内**更新卡片，否则更新会失败。
 
 ## 监听特定消息类型
 
@@ -449,7 +501,7 @@ php your-bot.php restart    # 重启
 - [x] 主动推送消息
 - [x] 事件监听（enter_chat 等）
 - [x] Laravel Service Provider + Artisan 命令
-- [ ] 模板卡片消息
+- [x] 模板卡片消息
 - [ ] 流式 + 卡片组合回复
 - [x] 文件下载 + AES-256-CBC 解密
 - [x] 回复消息回执等待（串行队列 + ack 回调）

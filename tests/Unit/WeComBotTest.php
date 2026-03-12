@@ -100,4 +100,48 @@ class WeComBotTest extends TestCase
         $bot->sendMessage('zhangsan', '测试');
         $this->assertTrue(true);
     }
+
+    public function test_push_template_card_to_user_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot([
+            'bot_id' => 'test-bot',
+            'secret' => 'test-secret',
+        ]);
+
+        $bot->pushTemplateCardToUser('zhangsan', ['card_type' => 'button_interaction']);
+        $this->assertTrue(true);
+    }
+
+    public function test_push_template_card_to_group_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot([
+            'bot_id' => 'test-bot',
+            'secret' => 'test-secret',
+        ]);
+
+        $bot->pushTemplateCardToGroup('group123', ['card_type' => 'button_interaction']);
+        $this->assertTrue(true);
+    }
+
+    public function test_update_template_card_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot([
+            'bot_id' => 'test-bot',
+            'secret' => 'test-secret',
+        ]);
+
+        $bot->updateTemplateCard('req_123', ['card_type' => 'button_interaction']);
+        $this->assertTrue(true);
+    }
+
+    public function test_on_template_card_event_fluent(): void
+    {
+        $bot = new WeComBot([
+            'bot_id' => 'test-bot',
+            'secret' => 'test-secret',
+        ]);
+
+        $result = $bot->onTemplateCardEvent(fn() => null);
+        $this->assertSame($bot, $result);
+    }
 }

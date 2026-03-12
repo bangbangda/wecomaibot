@@ -126,6 +126,103 @@ class FrameBuilderTest extends TestCase
         $this->assertSame('欢迎！', $frame['body']['text']['content']);
     }
 
+    public function test_send_template_card_frame(): void
+    {
+        $card = [
+            'card_type' => 'button_interaction',
+            'main_title' => ['title' => '告警', 'desc' => 'CPU 超过 90%'],
+            'button_list' => [
+                ['text' => '确认', 'style' => 1, 'key' => 'confirm'],
+                ['text' => '误报', 'style' => 2, 'key' => 'false_alarm'],
+            ],
+            'task_id' => 'TASK_001',
+        ];
+
+        $frame = json_decode(
+            FrameBuilder::sendTemplateCard('user001', $card, 1),
+            true,
+        );
+
+        $this->assertSame(Command::SEND_MSG, $frame['cmd']);
+        $this->assertStringStartsWith(Command::SEND_MSG . '_', $frame['headers']['req_id']);
+        $this->assertSame('user001', $frame['body']['chatid']);
+        $this->assertSame(1, $frame['body']['chat_type']);
+        $this->assertSame('template_card', $frame['body']['msgtype']);
+        $this->assertSame($card, $frame['body']['template_card']);
+    }
+
+    public function test_send_template_card_group(): void
+    {
+        $card = ['card_type' => 'button_interaction', 'task_id' => 'T1'];
+
+        $frame = json_decode(
+            FrameBuilder::sendTemplateCard('group123', $card, 2),
+            true,
+        );
+
+        $this->assertSame(2, $frame['body']['chat_type']);
+        $this->assertSame('group123', $frame['body']['chatid']);
+        $this->assertSame('template_card', $frame['body']['msgtype']);
+    }
+
+    public function test_send_template_card_default_chat_type(): void
+    {
+        $card = ['card_type' => 'button_interaction', 'task_id' => 'T1'];
+
+        $frame = json_decode(
+            FrameBuilder::sendTemplateCard('someone', $card),
+            true,
+        );
+
+        $this->assertSame(0, $frame['body']['chat_type']);
+    }
+
+    public function test_update_template_card_frame(): void
+    {
+        $card = [
+            'card_type' => 'button_interaction',
+            'main_title' => ['title' => '告警', 'desc' => '已处理'],
+            'button_list' => [
+                ['text' => '已确认', 'style' => 1, 'key' => 'confirm'],
+            ],
+            'task_id' => 'TASK_001',
+            'feedback' => ['id' => 'FB_001'],
+        ];
+
+        $frame = json_decode(
+            FrameBuilder::updateTemplateCard('req_event_456', $card),
+            true,
+        );
+
+        $this->assertSame(Command::RESPONSE_UPDATE, $frame['cmd']);
+        $this->assertSame('req_event_456', $frame['headers']['req_id']);
+        $this->assertSame('update_template_card', $frame['body']['response_type']);
+        $this->assertSame($card, $frame['body']['template_card']);
+    }
+
+    public function test_update_template_card_preserves_structure(): void
+    {
+        // 确保复杂嵌套结构完整透传
+        $card = [
+            'card_type' => 'button_interaction',
+            'main_title' => ['title' => '审批', 'desc' => '请处理'],
+            'button_list' => [
+                ['text' => '同意', 'style' => 1, 'key' => 'approve'],
+                ['text' => '拒绝', 'style' => 2, 'key' => 'reject'],
+                ['text' => '转交', 'style' => 3, 'key' => 'transfer'],
+            ],
+            'task_id' => 'APPROVAL_001',
+        ];
+
+        $frame = json_decode(
+            FrameBuilder::updateTemplateCard('req_789', $card),
+            true,
+        );
+
+        $this->assertCount(3, $frame['body']['template_card']['button_list']);
+        $this->assertSame('approve', $frame['body']['template_card']['button_list'][0]['key']);
+    }
+
     public function test_chinese_content_not_escaped(): void
     {
         $json = FrameBuilder::sendMessage('user1', '你好');
