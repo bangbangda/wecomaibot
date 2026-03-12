@@ -100,6 +100,47 @@ final class FrameBuilder
     }
 
     /**
+     * 构建主动推送模板卡片帧
+     *
+     * @param string $chatId       会话 ID（单聊填 userid，群聊填 chatid）
+     * @param array  $templateCard 模板卡片结构体（透传，由调用者定义）
+     * @param int    $chatType     会话类型：1=单聊，2=群聊，0=自动判断
+     */
+    public static function sendTemplateCard(string $chatId, array $templateCard, int $chatType = 0): string
+    {
+        return self::encode([
+            'cmd' => Command::SEND_MSG,
+            'headers' => ['req_id' => self::generateReqId(Command::SEND_MSG)],
+            'body' => [
+                'chatid' => $chatId,
+                'chat_type' => $chatType,
+                'msgtype' => 'template_card',
+                'template_card' => $templateCard,
+            ],
+        ]);
+    }
+
+    /**
+     * 构建更新模板卡片帧
+     *
+     * 收到 template_card_event 后，5 秒内调用此方法更新卡片。
+     *
+     * @param string $reqId        事件帧的 req_id（透传）
+     * @param array  $templateCard 更新后的模板卡片结构体
+     */
+    public static function updateTemplateCard(string $reqId, array $templateCard): string
+    {
+        return self::encode([
+            'cmd' => Command::RESPONSE_UPDATE,
+            'headers' => ['req_id' => $reqId],
+            'body' => [
+                'response_type' => 'update_template_card',
+                'template_card' => $templateCard,
+            ],
+        ]);
+    }
+
+    /**
      * 构建欢迎语回复帧（文本）
      *
      * @param string $reqId   事件帧的 req_id

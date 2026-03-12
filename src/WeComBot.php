@@ -177,6 +177,16 @@ class WeComBot
         return $this;
     }
 
+    /**
+     * 监听模板卡片点击事件
+     *
+     * @param callable(Event, Reply): void $handler
+     */
+    public function onTemplateCardEvent(callable $handler): static
+    {
+        return $this->onEvent('template_card_event', $handler);
+    }
+
     // ========== 生命周期回调 ==========
 
     /**
@@ -240,6 +250,71 @@ class WeComBot
     public function sendMessage(string $chatId, string $content, ?callable $onAck = null): void
     {
         $this->push($chatId, $content, 0, $onAck);
+    }
+
+    // ========== 模板卡片 ==========
+
+    /**
+     * 主动推送模板卡片给用户（单聊）
+     *
+     * @param string        $userId 用户 userid
+     * @param array         $card   模板卡片结构体（透传，由调用者定义）
+     * @param callable|null $onAck  ack 回调：fn(int $errcode) => void
+     */
+    public function pushTemplateCardToUser(string $userId, array $card, ?callable $onAck = null): void
+    {
+        $this->pushTemplateCard($userId, $card, 1, $onAck);
+    }
+
+    /**
+     * 主动推送模板卡片到群聊
+     *
+     * @param string        $chatId 群聊 chatid
+     * @param array         $card   模板卡片结构体（透传，由调用者定义）
+     * @param callable|null $onAck  ack 回调：fn(int $errcode) => void
+     */
+    public function pushTemplateCardToGroup(string $chatId, array $card, ?callable $onAck = null): void
+    {
+        $this->pushTemplateCard($chatId, $card, 2, $onAck);
+    }
+
+    /**
+     * 更新模板卡片
+     *
+     * 收到 template_card_event 后，5 秒内调用此方法更新卡片状态。
+     *
+     * @param string        $reqId  事件帧的 req_id（透传）
+     * @param array         $card   更新后的模板卡片结构体
+     * @param callable|null $onAck  ack 回调：fn(int $errcode) => void
+     */
+    public function updateTemplateCard(string $reqId, array $card, ?callable $onAck = null): void
+    {
+        if (!$this->client?->isConnected()) {
+            $this->logger->error('Cannot update template card: not connected');
+            return;
+        }
+
+        $frame = FrameBuilder::updateTemplateCard($reqId, $card);
+        $this->client->sendQueued($frame, $reqId, $onAck);
+        $this->logger->info("Queued template card update (req_id={$reqId})");
+    }
+
+    /**
+     * 内部推送模板卡片方法
+     */
+    private function pushTemplateCard(string $chatId, array $card, int $chatType, ?callable $onAck = null): void
+    {
+        if (!$this->client?->isConnected()) {
+            $this->logger->error('Cannot push template card: not connected');
+            return;
+        }
+
+        $frame = FrameBuilder::sendTemplateCard($chatId, $card, $chatType);
+        $decoded = json_decode($frame, true);
+        $reqId = $decoded['headers']['req_id'] ?? '';
+
+        $this->client->sendQueued($frame, $reqId, $onAck);
+        $this->logger->info("Queued template card push to {$chatId} (chat_type={$chatType})");
     }
 
     /**
