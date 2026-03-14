@@ -14,10 +14,11 @@ class MessageParser
     /**
      * 从原始帧数据解析出 Message 对象
      *
-     * @param array $frame 原始 WebSocket 帧（已 json_decode）
+     * @param array  $frame 原始 WebSocket 帧（已 json_decode）
+     * @param string $botId 接收此消息的机器人 ID
      * @return Message|null 解析失败返回 null
      */
-    public static function parse(array $frame): ?Message
+    public static function parse(array $frame, string $botId = ''): ?Message
     {
         $body = $frame['body'] ?? [];
         $headers = $frame['headers'] ?? [];
@@ -61,6 +62,7 @@ class MessageParser
             imageAesKeys: $parsed['imageAesKeys'],
             fileAesKeys: $parsed['fileAesKeys'],
             raw: $frame,
+            botId: $botId,
         );
     }
 

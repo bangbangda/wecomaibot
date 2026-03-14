@@ -341,6 +341,14 @@ class WeComBot
     }
 
     /**
+     * 获取机器人 ID
+     */
+    public function getBotId(): string
+    {
+        return $this->botId;
+    }
+
+    /**
      * 获取内部 WsClient 实例（高级用途）
      */
     public function getClient(): ?WsClient
@@ -453,7 +461,7 @@ class WeComBot
      */
     private function dispatchMessage(array $frame): void
     {
-        $message = MessageParser::parse($frame);
+        $message = MessageParser::parse($frame, $this->botId);
 
         if ($message === null) {
             $this->logger->warning('Failed to parse message, skipping');
@@ -531,6 +539,7 @@ class WeComBot
             createTime: $createTime,
             eventData: $body['event'] ?? [],
             raw: $frame,
+            botId: $this->botId,
         );
 
         $reply = new Reply($this->client, $reqId);

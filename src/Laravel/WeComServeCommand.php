@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace WeComAiBot\Laravel;
 
 use Illuminate\Console\Command;
+use WeComAiBot\BotManager;
 use WeComAiBot\Event\Event;
 use WeComAiBot\Message\Message;
 use WeComAiBot\Message\Reply;
@@ -14,6 +15,10 @@ use WeComAiBot\WeComBot;
  * Laravel Artisan 命令：启动企微机器人
  *
  * 用法：php artisan wecom:serve
+ *
+ * 自动检测配置模式：
+ * - 配置了 bots 数组 → 多机器人模式（BotManager）
+ * - 仅配置 bot_id/secret → 单机器人模式（WeComBot）
  */
 class WeComServeCommand extends Command
 {
@@ -23,7 +28,20 @@ class WeComServeCommand extends Command
     public function handle(): int
     {
         $config = config('wecomaibot');
+        $bots = $config['bots'] ?? [];
 
+        if (!empty($bots)) {
+            return $this->startMultiBotMode($config, $bots);
+        }
+
+        return $this->startSingleBotMode($config);
+    }
+
+    /**
+     * 单机器人模式
+     */
+    private function startSingleBotMode(array $config): int
+    {
         if (empty($config['bot_id']) || empty($config['secret'])) {
             $this->error('请先配置 WECOM_BOT_ID 和 WECOM_BOT_SECRET 环境变量');
             $this->line('');
@@ -36,7 +54,6 @@ class WeComServeCommand extends Command
         /** @var WeComBot $bot */
         $bot = app(WeComBot::class);
 
-        // 注册 handler（如果配置了）
         $this->registerHandler($bot, $config);
 
         $bot->onAuthenticated(function () {
@@ -49,6 +66,41 @@ class WeComServeCommand extends Command
 
         $this->info('正在连接企业微信...');
         $bot->start();
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * 多机器人模式
+     */
+    private function startMultiBotMode(array $config, array $bots): int
+    {
+        /** @var BotManager $manager */
+        $manager = app(BotManager::class);
+
+        // 为每个 bot 注册 handler
+        foreach ($bots as $botConfig) {
+            $botId = $botConfig['bot_id'] ?? '';
+            $bot = $manager->getBot($botId);
+
+            if ($bot === null) {
+                continue;
+            }
+
+            // 注册 handler（如果配置了）
+            $this->registerHandler($bot, $botConfig);
+
+            $bot->onAuthenticated(function () use ($botId) {
+                $this->info("[{$botId}] 已上线，等待消息...");
+            });
+
+            $bot->onError(function (\Throwable $e) use ($botId) {
+                $this->error("[{$botId}] 错误: {$e->getMessage()}");
+            });
+        }
+
+        $this->info('正在连接企业微信（' . count($bots) . ' 个机器人）...');
+        $manager->start();
 
         return self::SUCCESS;
     }

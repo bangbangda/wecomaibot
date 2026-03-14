@@ -28,6 +28,7 @@ class Message
      * @param array<string, string> $imageAesKeys 图片 URL → AES Key 映射
      * @param array<string, string> $fileAesKeys  文件 URL → AES Key 映射
      * @param array         $raw         原始帧数据
+     * @param string        $botId       接收此消息的机器人 ID（多 bot 场景下区分来源）
      */
     public function __construct(
         public readonly string $id,
@@ -43,6 +44,7 @@ class Message
         public readonly array $imageAesKeys = [],
         public readonly array $fileAesKeys = [],
         public readonly array $raw = [],
+        public readonly string $botId = '',
     ) {
     }
 
