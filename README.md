@@ -293,6 +293,7 @@ $bot->onEvent('*', function (Event $event, Reply $reply) {
 | `$message->imageUrls` | string[] | 图片 URL 列表 |
 | `$message->fileUrls` | string[] | 文件 URL 列表 |
 | `$message->quoteContent` | ?string | 引用消息的文本内容 |
+| `$message->botId` | string | 接收此消息的机器人 ID（多 bot 场景） |
 
 **便捷方法：**
 
@@ -362,34 +363,44 @@ $bot->onMessage(function (Message $message, Reply $reply) {
 
 ## 多机器人管理
 
-一个进程同时跑多个机器人，每个 bot 拥有独立的连接、心跳、重连和发送队列，数据完全隔离：
+一个进程同时跑多个机器人，每个 bot 拥有独立的连接、心跳、重连和发送队列，数据完全隔离。通过 `$message->botId` 在共享 handler 中区分消息来源：
 
 ```php
 use WeComAiBot\BotManager;
 use WeComAiBot\Message\Message;
 use WeComAiBot\Message\Reply;
 
-$manager = new BotManager();
-
-// 销售部机器人
-$salesBot = $manager->addBot('sales', [
-    'bot_id' => 'sales-bot-id',
-    'secret' => 'sales-bot-secret',
+// 构造时传入所有机器人配置（以 bot_id 为 key）
+$manager = new BotManager([
+    ['bot_id' => 'sales-bot-id', 'secret' => 'sales-bot-secret'],
+    ['bot_id' => 'finance-bot-id', 'secret' => 'finance-bot-secret'],
 ]);
-$salesBot->onMessage(function (Message $message, Reply $reply) {
-    $reply->text("【销售助手】收到：{$message->text}");
-});
 
-// 财务部机器人
-$financeBot = $manager->addBot('finance', [
-    'bot_id' => 'finance-bot-id',
-    'secret' => 'finance-bot-secret',
-]);
-$financeBot->onMessage(function (Message $message, Reply $reply) {
-    $reply->text("【财务助手】收到：{$message->text}");
+// 共享 handler：通过 $message->botId 区分来源
+$sharedHandler = function (Message $message, Reply $reply) {
+    $reply->text("Bot {$message->botId} 收到: {$message->text}");
+};
+
+$manager->getBot('sales-bot-id')->onMessage($sharedHandler);
+$manager->getBot('finance-bot-id')->onMessage($sharedHandler);
+
+// 也可以为特定 bot 注册专属 handler
+$manager->getBot('sales-bot-id')->onText(function (Message $message, Reply $reply) {
+    $reply->text("【销售助手】专属文本处理: {$message->text}");
 });
 
 // 一键启动所有机器人
+$manager->start();
+```
+
+也可以逐个添加：
+
+```php
+$manager = new BotManager();
+$bot = $manager->addBot(['bot_id' => 'my-bot-id', 'secret' => 'my-secret']);
+$bot->onMessage(function (Message $message, Reply $reply) {
+    $reply->text("收到: {$message->text}");
+});
 $manager->start();
 ```
 
@@ -400,14 +411,36 @@ php multi-bot.php start
 **BotManager API：**
 
 ```php
-$manager->addBot('name', $config);   // 注册机器人，返回 WeComBot 实例
-$manager->getBot('name');            // 获取已注册的机器人
-$manager->getAllBots();              // 获取所有机器人
-$manager->removeBot('name');         // 移除机器人
-$manager->start();                   // 启动所有机器人（阻塞）
+$manager->addBot($config);             // 注册机器人，返回 WeComBot 实例
+$manager->getBot('bot-id');            // 按 bot_id 获取已注册的机器人
+$manager->getAllBots();                // 获取所有机器人（key 为 bot_id）
+$manager->removeBot('bot-id');         // 移除机器人
+$manager->start();                     // 启动所有机器人（阻塞）
 ```
 
+**botId 透传：** `Message` 和 `Event` 对象都包含 `botId` 属性，标识接收此消息/事件的机器人。单 bot 场景下 `botId` 默认为空字符串，无需关心。
+
 > **隔离保证：** 每个 bot 有独立的 WebSocket 连接，企微服务端只推送该 bot 的消息到对应连接。多 bot 同时断线时，重连采用随机抖动避免冲击服务端。一个 bot 认证失败不影响其他 bot。
+
+### Laravel 多机器人
+
+在 `config/wecomaibot.php` 中配置 `bots` 数组，自动切换为多 bot 模式：
+
+```php
+// config/wecomaibot.php
+'bots' => [
+    ['bot_id' => 'sales-bot', 'secret' => 'xxx', 'handler' => \App\Bots\SalesHandler::class],
+    ['bot_id' => 'support-bot', 'secret' => 'yyy', 'handler' => \App\Bots\SupportHandler::class],
+],
+```
+
+启动命令不变：
+
+```bash
+php artisan wecom:serve
+```
+
+> 配置了 `bots` 数组时，顶层的 `bot_id` / `secret` / `handler` 将被忽略。全局的 `ws_url`、`heartbeat_interval`、`max_reconnect_attempts` 会作为默认值合入每个 bot 配置。
 
 ## 完整配置项
 
@@ -502,7 +535,7 @@ php your-bot.php restart    # 重启
 - [x] 事件监听（enter_chat 等）
 - [x] Laravel Service Provider + Artisan 命令
 - [x] 模板卡片消息
-- [ ] 流式 + 卡片组合回复
+- [x] 流式 + 卡片组合回复
 - [x] 文件下载 + AES-256-CBC 解密
 - [x] 回复消息回执等待（串行队列 + ack 回调）
 - [x] 多机器人实例管理（BotManager，数据完全隔离）

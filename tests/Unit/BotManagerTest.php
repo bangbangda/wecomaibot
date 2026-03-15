@@ -172,4 +172,45 @@ class BotManagerTest extends TestCase
         $this->assertSame('sales-id', $sales->getBotId());
         $this->assertSame('finance-id', $finance->getBotId());
     }
+
+    public function test_constructor_with_three_bots(): void
+    {
+        $manager = new BotManager([
+            ['bot_id' => 'bot-a', 'secret' => 'secret-a'],
+            ['bot_id' => 'bot-b', 'secret' => 'secret-b'],
+            ['bot_id' => 'bot-c', 'secret' => 'secret-c'],
+        ]);
+
+        $this->assertCount(3, $manager->getAllBots());
+        $this->assertSame('bot-a', $manager->getBot('bot-a')->getBotId());
+        $this->assertSame('bot-b', $manager->getBot('bot-b')->getBotId());
+        $this->assertSame('bot-c', $manager->getBot('bot-c')->getBotId());
+    }
+
+    public function test_constructor_with_duplicate_bot_id_throws(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Bot "bot-1" already registered');
+
+        new BotManager([
+            ['bot_id' => 'bot-1', 'secret' => 'secret-1'],
+            ['bot_id' => 'bot-1', 'secret' => 'secret-2'],
+        ]);
+    }
+
+    public function test_remove_one_bot_keeps_others(): void
+    {
+        $manager = new BotManager([
+            ['bot_id' => 'bot-a', 'secret' => 'secret-a'],
+            ['bot_id' => 'bot-b', 'secret' => 'secret-b'],
+            ['bot_id' => 'bot-c', 'secret' => 'secret-c'],
+        ]);
+
+        $manager->removeBot('bot-b');
+
+        $this->assertCount(2, $manager->getAllBots());
+        $this->assertNotNull($manager->getBot('bot-a'));
+        $this->assertNull($manager->getBot('bot-b'));
+        $this->assertNotNull($manager->getBot('bot-c'));
+    }
 }

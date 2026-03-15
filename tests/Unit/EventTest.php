@@ -79,4 +79,33 @@ class EventTest extends TestCase
 
         $this->assertNull($event->type());
     }
+
+    public function test_event_bot_id(): void
+    {
+        $event = new Event(
+            id: 'msg1',
+            reqId: 'req1',
+            eventType: 'enter_chat',
+            chatType: 'single',
+            chatId: null,
+            senderId: 'user1',
+            botId: 'my-bot-id',
+        );
+
+        $this->assertSame('my-bot-id', $event->botId);
+    }
+
+    public function test_event_bot_id_defaults_to_empty(): void
+    {
+        $event = new Event(
+            id: 'msg1',
+            reqId: 'req1',
+            eventType: 'enter_chat',
+            chatType: 'single',
+            chatId: null,
+            senderId: 'user1',
+        );
+
+        $this->assertSame('', $event->botId);
+    }
 }
