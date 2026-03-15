@@ -21,6 +21,7 @@ class Event
      * @param int|null    $createTime 事件创建时间（Unix 时间戳）
      * @param array       $eventData  事件详细数据
      * @param array       $raw        原始帧数据
+     * @param string      $botId      接收此事件的机器人 ID（多 bot 场景下区分来源）
      */
     public function __construct(
         public readonly string $id,
@@ -32,6 +33,7 @@ class Event
         public readonly ?int $createTime = null,
         public readonly array $eventData = [],
         public readonly array $raw = [],
+        public readonly string $botId = '',
     ) {
     }
 

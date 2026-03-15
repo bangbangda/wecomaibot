@@ -235,6 +235,54 @@ class MessageParserTest extends TestCase
         $this->assertNull(MessageParser::parse($frame));
     }
 
+    public function test_parse_injects_bot_id(): void
+    {
+        $frame = $this->buildFrame([
+            'msgid' => 'msg020',
+            'msgtype' => 'text',
+            'chattype' => 'single',
+            'from' => ['userid' => 'user001'],
+            'text' => ['content' => '你好'],
+        ]);
+
+        $message = MessageParser::parse($frame, 'my-bot-id');
+
+        $this->assertSame('my-bot-id', $message->botId);
+    }
+
+    public function test_parse_bot_id_defaults_to_empty(): void
+    {
+        $frame = $this->buildFrame([
+            'msgid' => 'msg021',
+            'msgtype' => 'text',
+            'chattype' => 'single',
+            'from' => ['userid' => 'user001'],
+            'text' => ['content' => '你好'],
+        ]);
+
+        $message = MessageParser::parse($frame);
+
+        $this->assertSame('', $message->botId);
+    }
+
+    public function test_parse_different_bot_ids_produce_different_messages(): void
+    {
+        $frame = $this->buildFrame([
+            'msgid' => 'msg022',
+            'msgtype' => 'text',
+            'chattype' => 'single',
+            'from' => ['userid' => 'user001'],
+            'text' => ['content' => '同一条消息'],
+        ]);
+
+        $msgA = MessageParser::parse($frame, 'bot-a');
+        $msgB = MessageParser::parse($frame, 'bot-b');
+
+        $this->assertSame('bot-a', $msgA->botId);
+        $this->assertSame('bot-b', $msgB->botId);
+        $this->assertSame($msgA->text, $msgB->text);
+    }
+
     public function test_message_helper_methods(): void
     {
         $frame = $this->buildFrame([

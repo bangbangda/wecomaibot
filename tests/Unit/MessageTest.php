@@ -75,5 +75,16 @@ class MessageTest extends TestCase
         $this->assertSame([], $message->imageAesKeys);
         $this->assertSame([], $message->fileAesKeys);
         $this->assertSame([], $message->raw);
+        $this->assertSame('', $message->botId);
+    }
+
+    public function test_bot_id_property(): void
+    {
+        $message = new Message(
+            id: '1', reqId: 'r', type: 'text', chatType: 'single',
+            chatId: 'u', senderId: 'u', botId: 'sales-bot',
+        );
+
+        $this->assertSame('sales-bot', $message->botId);
     }
 }
