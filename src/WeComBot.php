@@ -12,6 +12,7 @@ use WeComAiBot\Message\MessageParser;
 use WeComAiBot\Message\Reply;
 use WeComAiBot\Protocol\Command;
 use WeComAiBot\Protocol\FrameBuilder;
+use WeComAiBot\Media\MediaUploader;
 use WeComAiBot\Support\ConsoleLogger;
 use WeComAiBot\Support\LoggerInterface;
 
@@ -338,6 +339,152 @@ class WeComBot
 
         $this->client->sendQueued($frame, $reqId, $onAck);
         $this->logger->info("Queued push to {$chatId} (chat_type={$chatType})");
+    }
+
+    // ========== 媒体消息推送 ==========
+
+    /**
+     * 主动推送图片给用户（单聊）
+     *
+     * 自动上传文件获取 media_id 后发送。
+     * 支持格式：png, jpg/jpeg, gif；大小 ≤ 2MB。
+     *
+     * @param string        $userId   用户 userid
+     * @param string        $filePath 本地图片路径
+     * @param callable|null $onAck    ack 回调：fn(int $errcode) => void
+     */
+    public function pushImageToUser(string $userId, string $filePath, ?callable $onAck = null): void
+    {
+        $this->pushMedia($userId, $filePath, 'image', 1, $onAck);
+    }
+
+    /**
+     * 主动推送图片到群聊
+     */
+    public function pushImageToGroup(string $chatId, string $filePath, ?callable $onAck = null): void
+    {
+        $this->pushMedia($chatId, $filePath, 'image', 2, $onAck);
+    }
+
+    /**
+     * 主动推送文件给用户（单聊）
+     *
+     * 大小 ≤ 20MB。
+     *
+     * @param string        $userId   用户 userid
+     * @param string        $filePath 本地文件路径
+     * @param callable|null $onAck    ack 回调：fn(int $errcode) => void
+     */
+    public function pushFileToUser(string $userId, string $filePath, ?callable $onAck = null): void
+    {
+        $this->pushMedia($userId, $filePath, 'file', 1, $onAck);
+    }
+
+    /**
+     * 主动推送文件到群聊
+     */
+    public function pushFileToGroup(string $chatId, string $filePath, ?callable $onAck = null): void
+    {
+        $this->pushMedia($chatId, $filePath, 'file', 2, $onAck);
+    }
+
+    /**
+     * 主动推送语音给用户（单聊）
+     *
+     * 支持格式：amr；大小 ≤ 2MB。
+     *
+     * @param string        $userId   用户 userid
+     * @param string        $filePath 本地语音文件路径
+     * @param callable|null $onAck    ack 回调：fn(int $errcode) => void
+     */
+    public function pushVoiceToUser(string $userId, string $filePath, ?callable $onAck = null): void
+    {
+        $this->pushMedia($userId, $filePath, 'voice', 1, $onAck);
+    }
+
+    /**
+     * 主动推送语音到群聊
+     */
+    public function pushVoiceToGroup(string $chatId, string $filePath, ?callable $onAck = null): void
+    {
+        $this->pushMedia($chatId, $filePath, 'voice', 2, $onAck);
+    }
+
+    /**
+     * 主动推送视频给用户（单聊）
+     *
+     * 支持格式：mp4；大小 ≤ 10MB。
+     *
+     * @param string        $userId      用户 userid
+     * @param string        $filePath    本地视频文件路径
+     * @param string|null   $title       视频标题（不超过 64 字节）
+     * @param string|null   $description 视频描述（不超过 512 字节）
+     * @param callable|null $onAck       ack 回调：fn(int $errcode) => void
+     */
+    public function pushVideoToUser(
+        string $userId,
+        string $filePath,
+        ?string $title = null,
+        ?string $description = null,
+        ?callable $onAck = null,
+    ): void {
+        $this->pushMedia($userId, $filePath, 'video', 1, $onAck, $title, $description);
+    }
+
+    /**
+     * 主动推送视频到群聊
+     */
+    public function pushVideoToGroup(
+        string $chatId,
+        string $filePath,
+        ?string $title = null,
+        ?string $description = null,
+        ?callable $onAck = null,
+    ): void {
+        $this->pushMedia($chatId, $filePath, 'video', 2, $onAck, $title, $description);
+    }
+
+    /**
+     * 内部媒体推送方法：上传文件 → 获取 media_id → 发送消息
+     */
+    private function pushMedia(
+        string $chatId,
+        string $filePath,
+        string $type,
+        int $chatType,
+        ?callable $onAck = null,
+        ?string $title = null,
+        ?string $description = null,
+    ): void {
+        if (!$this->client?->isConnected()) {
+            $this->logger->error("Cannot push {$type}: not connected");
+            return;
+        }
+
+        $uploader = new MediaUploader();
+        $uploader->upload($this->client, $type, $filePath, $this->logger, function (?string $mediaId, ?string $error) use (
+            $chatId, $type, $chatType, $onAck, $title, $description
+        ) {
+            if ($mediaId === null) {
+                $this->logger->error("Media upload failed: {$error}");
+                return;
+            }
+
+            // 根据类型构建发送帧
+            $frame = match ($type) {
+                'image' => FrameBuilder::sendImage($chatId, $mediaId, $chatType),
+                'file' => FrameBuilder::sendFile($chatId, $mediaId, $chatType),
+                'voice' => FrameBuilder::sendVoice($chatId, $mediaId, $chatType),
+                'video' => FrameBuilder::sendVideo($chatId, $mediaId, $chatType, $title, $description),
+                default => throw new \InvalidArgumentException("Unsupported media type: {$type}"),
+            };
+
+            $decoded = json_decode($frame, true);
+            $reqId = $decoded['headers']['req_id'] ?? '';
+
+            $this->client->sendQueued($frame, $reqId, $onAck);
+            $this->logger->info("Queued {$type} push to {$chatId} (media_id={$mediaId})");
+        });
     }
 
     /**

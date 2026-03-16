@@ -53,6 +53,9 @@ class WsClient
     /** 发送队列（串行发送 + ack 等待） */
     private SendQueue $sendQueue;
 
+    /** @var array<string, callable> 响应回调注册表（req_id → callback） */
+    private array $responseCallbacks = [];
+
     /** 收到消息的回调 */
     private mixed $onMessageCallback = null;
 
@@ -179,6 +182,7 @@ class WsClient
         $this->stopHeartbeat();
         $this->authenticated = false;
         $this->sendQueue->clear();
+        $this->responseCallbacks = [];
 
         if ($this->connection) {
             $this->connection->close();
@@ -220,6 +224,27 @@ class WsClient
         }
 
         $this->sendQueue->enqueue($data, $reqId, $onAck);
+    }
+
+    /**
+     * 发送帧并注册响应回调（用于需要完整响应体的场景，如上传素材）
+     *
+     * 与 sendQueued 不同，此方法不经过串行队列，直接发送并等待响应。
+     * 响应回调接收完整帧数据（含 body）。
+     *
+     * @param string   $data     JSON 帧字符串
+     * @param string   $reqId    帧的 req_id，用于匹配响应
+     * @param callable $callback 响应回调：fn(array $frame) => void
+     */
+    public function sendWithResponse(string $data, string $reqId, callable $callback): void
+    {
+        if (!$this->connection) {
+            $this->logger->error('Cannot send: connection not established');
+            return;
+        }
+
+        $this->responseCallbacks[$reqId] = $callback;
+        $this->connection->send($data);
     }
 
     /**
@@ -363,6 +388,18 @@ class WsClient
                 $this->logger->debug('Heartbeat ack received');
             } else {
                 $this->logger->warning("Heartbeat ack error: errcode={$errcode}");
+            }
+            return;
+        }
+
+        // 响应回调（上传素材等需要完整响应体的场景）
+        if (isset($this->responseCallbacks[$reqId])) {
+            $callback = $this->responseCallbacks[$reqId];
+            unset($this->responseCallbacks[$reqId]);
+            try {
+                $callback($frame);
+            } catch (\Throwable $e) {
+                $this->logger->error("Response callback error: {$e->getMessage()}");
             }
             return;
         }

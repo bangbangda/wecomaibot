@@ -31,6 +31,15 @@ final class Command
     /** 主动发送消息 */
     public const SEND_MSG = 'aibot_send_msg';
 
+    /** 上传临时素材 — 初始化 */
+    public const UPLOAD_INIT = 'aibot_upload_media_init';
+
+    /** 上传临时素材 — 分片上传 */
+    public const UPLOAD_CHUNK = 'aibot_upload_media_chunk';
+
+    /** 上传临时素材 — 完成上传 */
+    public const UPLOAD_FINISH = 'aibot_upload_media_finish';
+
     // ========== 企业微信 → 开发者 ==========
 
     /** 消息推送回调 */
