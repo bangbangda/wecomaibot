@@ -141,6 +141,176 @@ final class FrameBuilder
     }
 
     /**
+     * 构建主动推送图片消息帧
+     *
+     * @param string $chatId   会话 ID
+     * @param string $mediaId  图片媒体 ID（通过上传临时素材获取）
+     * @param int    $chatType 会话类型：1=单聊，2=群聊，0=自动判断
+     */
+    public static function sendImage(string $chatId, string $mediaId, int $chatType = 0): string
+    {
+        return self::encode([
+            'cmd' => Command::SEND_MSG,
+            'headers' => ['req_id' => self::generateReqId(Command::SEND_MSG)],
+            'body' => [
+                'chatid' => $chatId,
+                'chat_type' => $chatType,
+                'msgtype' => 'image',
+                'image' => ['media_id' => $mediaId],
+            ],
+        ]);
+    }
+
+    /**
+     * 构建主动推送文件消息帧
+     *
+     * @param string $chatId   会话 ID
+     * @param string $mediaId  文件媒体 ID（通过上传临时素材获取）
+     * @param int    $chatType 会话类型：1=单聊，2=群聊，0=自动判断
+     */
+    public static function sendFile(string $chatId, string $mediaId, int $chatType = 0): string
+    {
+        return self::encode([
+            'cmd' => Command::SEND_MSG,
+            'headers' => ['req_id' => self::generateReqId(Command::SEND_MSG)],
+            'body' => [
+                'chatid' => $chatId,
+                'chat_type' => $chatType,
+                'msgtype' => 'file',
+                'file' => ['media_id' => $mediaId],
+            ],
+        ]);
+    }
+
+    /**
+     * 构建主动推送语音消息帧
+     *
+     * @param string $chatId   会话 ID
+     * @param string $mediaId  语音媒体 ID（通过上传临时素材获取）
+     * @param int    $chatType 会话类型：1=单聊，2=群聊，0=自动判断
+     */
+    public static function sendVoice(string $chatId, string $mediaId, int $chatType = 0): string
+    {
+        return self::encode([
+            'cmd' => Command::SEND_MSG,
+            'headers' => ['req_id' => self::generateReqId(Command::SEND_MSG)],
+            'body' => [
+                'chatid' => $chatId,
+                'chat_type' => $chatType,
+                'msgtype' => 'voice',
+                'voice' => ['media_id' => $mediaId],
+            ],
+        ]);
+    }
+
+    /**
+     * 构建主动推送视频消息帧
+     *
+     * @param string      $chatId      会话 ID
+     * @param string      $mediaId     视频媒体 ID（通过上传临时素材获取）
+     * @param int         $chatType    会话类型：1=单聊，2=群聊，0=自动判断
+     * @param string|null $title       视频标题（不超过 64 字节）
+     * @param string|null $description 视频描述（不超过 512 字节）
+     */
+    public static function sendVideo(
+        string $chatId,
+        string $mediaId,
+        int $chatType = 0,
+        ?string $title = null,
+        ?string $description = null,
+    ): string {
+        $video = ['media_id' => $mediaId];
+        if ($title !== null) {
+            $video['title'] = $title;
+        }
+        if ($description !== null) {
+            $video['description'] = $description;
+        }
+
+        return self::encode([
+            'cmd' => Command::SEND_MSG,
+            'headers' => ['req_id' => self::generateReqId(Command::SEND_MSG)],
+            'body' => [
+                'chatid' => $chatId,
+                'chat_type' => $chatType,
+                'msgtype' => 'video',
+                'video' => $video,
+            ],
+        ]);
+    }
+
+    // ========== 临时素材上传 ==========
+
+    /**
+     * 构建上传临时素材初始化帧
+     *
+     * @param string      $type        文件类型：image, voice, video, file
+     * @param string      $filename    文件名
+     * @param int         $totalSize   文件总大小（字节）
+     * @param int         $totalChunks 分片数量
+     * @param string|null $md5         文件 MD5（可选，服务端校验完整性）
+     */
+    public static function uploadMediaInit(
+        string $type,
+        string $filename,
+        int $totalSize,
+        int $totalChunks,
+        ?string $md5 = null,
+    ): string {
+        $body = [
+            'type' => $type,
+            'filename' => $filename,
+            'total_size' => $totalSize,
+            'total_chunks' => $totalChunks,
+        ];
+        if ($md5 !== null) {
+            $body['md5'] = $md5;
+        }
+
+        return self::encode([
+            'cmd' => Command::UPLOAD_INIT,
+            'headers' => ['req_id' => self::generateReqId(Command::UPLOAD_INIT)],
+            'body' => $body,
+        ]);
+    }
+
+    /**
+     * 构建上传分片帧
+     *
+     * @param string $uploadId   上传 ID（init 返回）
+     * @param int    $chunkIndex 分片序号（从 0 开始）
+     * @param string $base64Data 分片内容的 Base64 编码
+     */
+    public static function uploadMediaChunk(string $uploadId, int $chunkIndex, string $base64Data): string
+    {
+        return self::encode([
+            'cmd' => Command::UPLOAD_CHUNK,
+            'headers' => ['req_id' => self::generateReqId(Command::UPLOAD_CHUNK)],
+            'body' => [
+                'upload_id' => $uploadId,
+                'chunk_index' => $chunkIndex,
+                'base64_data' => $base64Data,
+            ],
+        ]);
+    }
+
+    /**
+     * 构建上传完成帧
+     *
+     * @param string $uploadId 上传 ID（init 返回）
+     */
+    public static function uploadMediaFinish(string $uploadId): string
+    {
+        return self::encode([
+            'cmd' => Command::UPLOAD_FINISH,
+            'headers' => ['req_id' => self::generateReqId(Command::UPLOAD_FINISH)],
+            'body' => [
+                'upload_id' => $uploadId,
+            ],
+        ]);
+    }
+
+    /**
      * 构建欢迎语回复帧（文本）
      *
      * @param string $reqId   事件帧的 req_id

@@ -223,6 +223,109 @@ class FrameBuilderTest extends TestCase
         $this->assertSame('approve', $frame['body']['template_card']['button_list'][0]['key']);
     }
 
+    // ========== 媒体消息帧 ==========
+
+    public function test_send_image_frame(): void
+    {
+        $frame = json_decode(FrameBuilder::sendImage('user001', 'MEDIA_IMG_001', 1), true);
+
+        $this->assertSame(Command::SEND_MSG, $frame['cmd']);
+        $this->assertSame('user001', $frame['body']['chatid']);
+        $this->assertSame(1, $frame['body']['chat_type']);
+        $this->assertSame('image', $frame['body']['msgtype']);
+        $this->assertSame('MEDIA_IMG_001', $frame['body']['image']['media_id']);
+    }
+
+    public function test_send_file_frame(): void
+    {
+        $frame = json_decode(FrameBuilder::sendFile('user001', 'MEDIA_FILE_001', 1), true);
+
+        $this->assertSame('file', $frame['body']['msgtype']);
+        $this->assertSame('MEDIA_FILE_001', $frame['body']['file']['media_id']);
+    }
+
+    public function test_send_voice_frame(): void
+    {
+        $frame = json_decode(FrameBuilder::sendVoice('user001', 'MEDIA_VOICE_001', 1), true);
+
+        $this->assertSame('voice', $frame['body']['msgtype']);
+        $this->assertSame('MEDIA_VOICE_001', $frame['body']['voice']['media_id']);
+    }
+
+    public function test_send_video_frame(): void
+    {
+        $frame = json_decode(FrameBuilder::sendVideo('user001', 'MEDIA_VIDEO_001', 1, '标题', '描述'), true);
+
+        $this->assertSame('video', $frame['body']['msgtype']);
+        $this->assertSame('MEDIA_VIDEO_001', $frame['body']['video']['media_id']);
+        $this->assertSame('标题', $frame['body']['video']['title']);
+        $this->assertSame('描述', $frame['body']['video']['description']);
+    }
+
+    public function test_send_video_frame_without_title(): void
+    {
+        $frame = json_decode(FrameBuilder::sendVideo('user001', 'MEDIA_VIDEO_001'), true);
+
+        $this->assertSame('video', $frame['body']['msgtype']);
+        $this->assertSame('MEDIA_VIDEO_001', $frame['body']['video']['media_id']);
+        $this->assertArrayNotHasKey('title', $frame['body']['video']);
+        $this->assertArrayNotHasKey('description', $frame['body']['video']);
+    }
+
+    // ========== 上传临时素材帧 ==========
+
+    public function test_upload_media_init_frame(): void
+    {
+        $frame = json_decode(
+            FrameBuilder::uploadMediaInit('voice', 'audio.amr', 10240, 1, 'abc123md5'),
+            true,
+        );
+
+        $this->assertSame(Command::UPLOAD_INIT, $frame['cmd']);
+        $this->assertStringStartsWith(Command::UPLOAD_INIT . '_', $frame['headers']['req_id']);
+        $this->assertSame('voice', $frame['body']['type']);
+        $this->assertSame('audio.amr', $frame['body']['filename']);
+        $this->assertSame(10240, $frame['body']['total_size']);
+        $this->assertSame(1, $frame['body']['total_chunks']);
+        $this->assertSame('abc123md5', $frame['body']['md5']);
+    }
+
+    public function test_upload_media_init_without_md5(): void
+    {
+        $frame = json_decode(
+            FrameBuilder::uploadMediaInit('image', 'photo.jpg', 5000, 1),
+            true,
+        );
+
+        $this->assertArrayNotHasKey('md5', $frame['body']);
+    }
+
+    public function test_upload_media_chunk_frame(): void
+    {
+        $frame = json_decode(
+            FrameBuilder::uploadMediaChunk('UPLOAD_001', 0, 'base64data=='),
+            true,
+        );
+
+        $this->assertSame(Command::UPLOAD_CHUNK, $frame['cmd']);
+        $this->assertStringStartsWith(Command::UPLOAD_CHUNK . '_', $frame['headers']['req_id']);
+        $this->assertSame('UPLOAD_001', $frame['body']['upload_id']);
+        $this->assertSame(0, $frame['body']['chunk_index']);
+        $this->assertSame('base64data==', $frame['body']['base64_data']);
+    }
+
+    public function test_upload_media_finish_frame(): void
+    {
+        $frame = json_decode(
+            FrameBuilder::uploadMediaFinish('UPLOAD_001'),
+            true,
+        );
+
+        $this->assertSame(Command::UPLOAD_FINISH, $frame['cmd']);
+        $this->assertStringStartsWith(Command::UPLOAD_FINISH . '_', $frame['headers']['req_id']);
+        $this->assertSame('UPLOAD_001', $frame['body']['upload_id']);
+    }
+
     public function test_chinese_content_not_escaped(): void
     {
         $json = FrameBuilder::sendMessage('user1', '你好');

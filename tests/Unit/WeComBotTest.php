@@ -144,4 +144,55 @@ class WeComBotTest extends TestCase
         $result = $bot->onTemplateCardEvent(fn() => null);
         $this->assertSame($bot, $result);
     }
+
+    // ========== 媒体推送（未连接时不抛异常） ==========
+
+    public function test_push_image_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot(['bot_id' => 'test-bot', 'secret' => 'test-secret']);
+        $bot->pushImageToUser('zhangsan', '/tmp/test.jpg');
+        $this->assertTrue(true);
+    }
+
+    public function test_push_file_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot(['bot_id' => 'test-bot', 'secret' => 'test-secret']);
+        $bot->pushFileToUser('zhangsan', '/tmp/test.pdf');
+        $this->assertTrue(true);
+    }
+
+    public function test_push_voice_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot(['bot_id' => 'test-bot', 'secret' => 'test-secret']);
+        $bot->pushVoiceToUser('zhangsan', '/tmp/test.amr');
+        $this->assertTrue(true);
+    }
+
+    public function test_push_video_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot(['bot_id' => 'test-bot', 'secret' => 'test-secret']);
+        $bot->pushVideoToUser('zhangsan', '/tmp/test.mp4', '标题', '描述');
+        $this->assertTrue(true);
+    }
+
+    public function test_push_image_to_group_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot(['bot_id' => 'test-bot', 'secret' => 'test-secret']);
+        $bot->pushImageToGroup('group123', '/tmp/test.jpg');
+        $this->assertTrue(true);
+    }
+
+    public function test_push_voice_to_group_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot(['bot_id' => 'test-bot', 'secret' => 'test-secret']);
+        $bot->pushVoiceToGroup('group123', '/tmp/test.amr');
+        $this->assertTrue(true);
+    }
+
+    public function test_push_video_to_group_before_connect_logs_error(): void
+    {
+        $bot = new WeComBot(['bot_id' => 'test-bot', 'secret' => 'test-secret']);
+        $bot->pushVideoToGroup('group123', '/tmp/test.mp4');
+        $this->assertTrue(true);
+    }
 }
