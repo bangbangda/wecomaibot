@@ -64,6 +64,31 @@ class MessageTest extends TestCase
         $this->assertFalse($empty->hasQuote());
     }
 
+    public function test_has_video(): void
+    {
+        $withVideo = new Message(
+            id: '1', reqId: 'r', type: 'video', chatType: 'single', chatId: 'u', senderId: 'u',
+            videoUrls: ['https://example.com/video.mp4'],
+            videoAesKeys: ['https://example.com/video.mp4' => 'vkey123'],
+        );
+
+        $this->assertTrue($withVideo->hasVideo());
+        $this->assertCount(1, $withVideo->videoUrls);
+        $this->assertSame('vkey123', $withVideo->videoAesKeys['https://example.com/video.mp4']);
+
+        $noVideo = new Message(id: '2', reqId: 'r', type: 'text', chatType: 'single', chatId: 'u', senderId: 'u');
+        $this->assertFalse($noVideo->hasVideo());
+    }
+
+    public function test_video_default_values(): void
+    {
+        $message = new Message(id: '1', reqId: 'r', type: 'text', chatType: 'single', chatId: 'u', senderId: 'u');
+
+        $this->assertSame([], $message->videoUrls);
+        $this->assertSame([], $message->videoAesKeys);
+        $this->assertFalse($message->hasVideo());
+    }
+
     public function test_default_values(): void
     {
         $message = new Message(id: '1', reqId: 'r', type: 'text', chatType: 'single', chatId: 'u', senderId: 'u');
@@ -71,9 +96,11 @@ class MessageTest extends TestCase
         $this->assertSame('', $message->text);
         $this->assertSame([], $message->imageUrls);
         $this->assertSame([], $message->fileUrls);
+        $this->assertSame([], $message->videoUrls);
         $this->assertNull($message->quoteContent);
         $this->assertSame([], $message->imageAesKeys);
         $this->assertSame([], $message->fileAesKeys);
+        $this->assertSame([], $message->videoAesKeys);
         $this->assertSame([], $message->raw);
         $this->assertSame('', $message->botId);
     }

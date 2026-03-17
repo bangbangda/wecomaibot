@@ -283,6 +283,56 @@ class MessageParserTest extends TestCase
         $this->assertSame($msgA->text, $msgB->text);
     }
 
+    public function test_parse_video_message(): void
+    {
+        $frame = $this->buildFrame([
+            'msgid' => 'msg030',
+            'msgtype' => 'video',
+            'chattype' => 'single',
+            'from' => ['userid' => 'user001'],
+            'video' => [
+                'url' => 'https://example.com/video.mp4',
+                'aeskey' => 'videokey123',
+            ],
+        ]);
+
+        $message = MessageParser::parse($frame);
+
+        $this->assertNotNull($message);
+        $this->assertSame('video', $message->type);
+        $this->assertTrue($message->hasVideo());
+        $this->assertCount(1, $message->videoUrls);
+        $this->assertSame('https://example.com/video.mp4', $message->videoUrls[0]);
+        $this->assertSame('videokey123', $message->videoAesKeys['https://example.com/video.mp4']);
+    }
+
+    public function test_parse_quote_with_video(): void
+    {
+        $frame = $this->buildFrame([
+            'msgid' => 'msg031',
+            'msgtype' => 'text',
+            'chattype' => 'single',
+            'from' => ['userid' => 'user001'],
+            'text' => ['content' => '这个视频讲了什么？'],
+            'quote' => [
+                'msgtype' => 'video',
+                'video' => [
+                    'url' => 'https://example.com/quoted-video.mp4',
+                    'aeskey' => 'quotedvideokey',
+                ],
+            ],
+        ]);
+
+        $message = MessageParser::parse($frame);
+
+        $this->assertNotNull($message);
+        $this->assertSame('这个视频讲了什么？', $message->text);
+        $this->assertTrue($message->hasVideo());
+        $this->assertCount(1, $message->videoUrls);
+        $this->assertSame('https://example.com/quoted-video.mp4', $message->videoUrls[0]);
+        $this->assertSame('quotedvideokey', $message->videoAesKeys['https://example.com/quoted-video.mp4']);
+    }
+
     public function test_message_helper_methods(): void
     {
         $frame = $this->buildFrame([

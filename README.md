@@ -230,6 +230,68 @@ $bot->onTemplateCardEvent(function (Event $event) use ($bot) {
 
 > **注意：** 收到 `template_card_event` 后必须在 **5 秒内**更新卡片，否则更新会失败。
 
+## 媒体消息推送
+
+除了文本和模板卡片，机器人还能主动推送图片、文件、语音、视频。SDK 自动完成文件上传（分片）+ 消息发送，用户只需传入本地文件路径：
+
+### 图片
+
+```php
+// 推送给用户（单聊）
+$bot->pushImageToUser('zhangsan', '/path/to/photo.jpg');
+
+// 推送到群聊
+$bot->pushImageToGroup('group-id', '/path/to/photo.jpg');
+```
+
+### 文件
+
+```php
+$bot->pushFileToUser('zhangsan', '/path/to/doc.pdf');
+$bot->pushFileToGroup('group-id', '/path/to/doc.pdf');
+```
+
+### 语音
+
+```php
+$bot->pushVoiceToUser('zhangsan', '/path/to/audio.amr');
+$bot->pushVoiceToGroup('group-id', '/path/to/audio.amr');
+```
+
+### 视频
+
+```php
+$bot->pushVideoToUser('zhangsan', '/path/to/video.mp4', '标题', '描述');
+$bot->pushVideoToGroup('group-id', '/path/to/video.mp4', '标题', '描述');
+```
+
+### ack 回调
+
+所有媒体推送方法都支持 ack 回调，用法与文本推送一致：
+
+```php
+$bot->pushImageToUser('zhangsan', '/path/to/photo.jpg', function (int $errcode) {
+    if ($errcode === 0) {
+        echo "图片发送成功\n";
+    } else {
+        echo "发送失败: errcode={$errcode}\n";
+    }
+});
+```
+
+### 限制说明
+
+| 类型 | 格式 | 大小上限 |
+|------|------|----------|
+| 图片 | png / jpg / gif | 2MB |
+| 语音 | amr | 2MB |
+| 视频 | mp4 | 10MB |
+| 普通文件 | 不限 | 20MB |
+
+> **临时素材有效期：** 上传的媒体文件在企微服务端保留 **3 天**，过期后不可访问。
+>
+> **前提：** 与文本推送相同，用户需先在会话中给机器人发过消息，机器人才能主动推送。
+
 ## 监听特定消息类型
 
 ```php

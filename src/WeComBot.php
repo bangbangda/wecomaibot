@@ -154,6 +154,17 @@ class WeComBot
     }
 
     /**
+     * 监听视频消息
+     *
+     * @param callable(Message, Reply): void $handler
+     */
+    public function onVideo(callable $handler): static
+    {
+        $this->messageHandlers['video'][] = $handler;
+        return $this;
+    }
+
+    /**
      * 监听图文混排消息
      *
      * @param callable(Message, Reply): void $handler
@@ -628,8 +639,8 @@ class WeComBot
             }
         }
 
-        // 跳过空消息（没有文本、图片、文件）
-        if (!$message->hasText() && !$message->hasImages() && !$message->hasFiles()) {
+        // 跳过空消息（没有文本、图片、文件、视频）
+        if (!$message->hasText() && !$message->hasImages() && !$message->hasFiles() && !$message->hasVideo()) {
             $this->logger->debug('Skipping empty message');
             return;
         }
