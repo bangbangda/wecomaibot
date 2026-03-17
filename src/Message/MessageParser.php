@@ -58,9 +58,11 @@ class MessageParser
             text: $text,
             imageUrls: $parsed['imageUrls'],
             fileUrls: $parsed['fileUrls'],
+            videoUrls: $parsed['videoUrls'],
             quoteContent: $parsed['quoteContent'],
             imageAesKeys: $parsed['imageAesKeys'],
             fileAesKeys: $parsed['fileAesKeys'],
+            videoAesKeys: $parsed['videoAesKeys'],
             raw: $frame,
             botId: $botId,
         );
@@ -71,7 +73,7 @@ class MessageParser
      *
      * 支持：文本、语音（转文字）、图片、文件、图文混排、引用消息
      *
-     * @return array{text: string, imageUrls: string[], fileUrls: string[], quoteContent: ?string, imageAesKeys: array, fileAesKeys: array}
+     * @return array{text: string, imageUrls: string[], fileUrls: string[], videoUrls: string[], quoteContent: ?string, imageAesKeys: array, fileAesKeys: array, videoAesKeys: array}
      */
     public static function parseContent(array $body): array
     {
@@ -80,6 +82,8 @@ class MessageParser
         $imageAesKeys = [];
         $fileUrls = [];
         $fileAesKeys = [];
+        $videoUrls = [];
+        $videoAesKeys = [];
         $quoteContent = null;
 
         $msgType = $body['msgtype'] ?? '';
@@ -122,6 +126,14 @@ class MessageParser
                     $fileAesKeys[$body['file']['url']] = $body['file']['aeskey'];
                 }
             }
+
+            // 视频消息
+            if ($msgType === 'video' && !empty($body['video']['url'])) {
+                $videoUrls[] = $body['video']['url'];
+                if (!empty($body['video']['aeskey'])) {
+                    $videoAesKeys[$body['video']['url']] = $body['video']['aeskey'];
+                }
+            }
         }
 
         // 处理引用消息
@@ -143,11 +155,16 @@ class MessageParser
                 if (!empty($quote['file']['aeskey'])) {
                     $fileAesKeys[$quote['file']['url']] = $quote['file']['aeskey'];
                 }
+            } elseif ($quoteType === 'video' && !empty($quote['video']['url'])) {
+                $videoUrls[] = $quote['video']['url'];
+                if (!empty($quote['video']['aeskey'])) {
+                    $videoAesKeys[$quote['video']['url']] = $quote['video']['aeskey'];
+                }
             }
         }
 
         $text = trim(implode("\n", $textParts));
 
-        return compact('text', 'imageUrls', 'fileUrls', 'quoteContent', 'imageAesKeys', 'fileAesKeys');
+        return compact('text', 'imageUrls', 'fileUrls', 'videoUrls', 'quoteContent', 'imageAesKeys', 'fileAesKeys', 'videoAesKeys');
     }
 }
